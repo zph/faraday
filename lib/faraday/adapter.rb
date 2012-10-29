@@ -1,5 +1,5 @@
 module Faraday
-  module Adapter
+  class Adapter
     module Methods
       def self.included(adapter)
         adapter.send :attr_accessor, :builder
