@@ -23,26 +23,11 @@ class CallbackBuilderTest < Faraday::TestCase
   end
 
   class Adapter
-    attr_accessor :builder
-
-    def call(req)
-      @builder.on_request(req)
-
-      res = if @builder.streaming_callbacks?
-        streaming_response(req)
-      else
-        response(req)
-      end
-
-      @builder.on_response(res)
-
-      res
-    end
+    include Faraday::Adapter::Methods
 
     def response(req)
-      Faraday::Response.new :status => 200, :body => 'booya',
-        :response_headers => {"Content-Type" => "text/plain",
-        'X-Body' => req.body}
+      Faraday::Response.new 200,
+        {"Content-Type" => "text/plain", 'X-Body' => req.body}, 'booya'
     end
 
     def streaming_response(req)

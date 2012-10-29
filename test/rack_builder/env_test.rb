@@ -83,7 +83,7 @@ class RackBuilderResponseTest < Faraday::TestCase
     @env = Faraday::Env.from \
       :status => 404, :body => 'yikes',
       :response_headers => {'Content-Type' => 'text/plain'}
-    @response = Faraday::Response.new @env
+    @response = Faraday::Response.from_env(@env)
   end
 
   def test_finished

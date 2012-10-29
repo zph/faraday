@@ -4,71 +4,73 @@ module Faraday
   class Response
     extend Forwardable
 
-    def initialize(env = nil)
-      @env = Env.from(env) if env
+    def self.from_env(env)
+      new.apply_env(env)
+    end
+
+    attr_reader :status, :headers, :body
+
+    def initialize(status = nil, headers = nil, body = nil)
+      @status = status
+      @headers = headers
+      @body = body
       @on_complete_callbacks = []
     end
 
     attr_reader :env
 
-    def_delegators :env, :to_hash
-
-    def status
-      finished? ? env.status : nil
-    end
-
-    def headers
-      finished? ? env.response_headers : {}
-    end
     def_delegator :headers, :[]
 
-    def body
-      finished? ? env.body : nil
+    def on_complete
+      if finished?
+        yield env
+        apply_env(env)
+      else
+        @on_complete_callbacks << Proc.new
+      end
+
+      self
     end
 
     def finished?
-      !!env
-    end
-
-    def on_complete
-      if not finished?
-        @on_complete_callbacks << Proc.new
-      else
-        yield env
-      end
-      return self
+      @status
     end
 
     def finish(env)
       raise "response already finished" if finished?
-      @env = Env.from(env)
+      env = Env.from(env)
       @on_complete_callbacks.each { |callback| callback.call(env) }
-      return self
+      apply_env(env)
     end
 
     def success?
       finished? && env.success?
     end
 
-    # because @on_complete_callbacks cannot be marshalled
-    def marshal_dump
-      !finished? ? nil : {
-        :status => @env.status, :body => @env.body,
-        :response_headers => @env.response_headers
-      }
-    end
-
-    def marshal_load(env)
-      @env = Env.from(env)
-    end
-
     # Expand the env with more properties, without overriding existing ones.
     # Useful for applying request params after restoring a marshalled Response.
     def apply_request(request_env)
       raise "response didn't finish yet" unless finished?
-      @env = Env.from(request_env).merge(@env)
-      return self
+      apply_env Env.from(request_env).merge(@env)
     end
+
+    def apply_env(env)
+      @env = env
+      @status = env.status
+      @body = env.body
+      @headers = env.response_headers
+      self
+    end
+
+    def marshal_dump
+      {:status => @status, :body => @body, :response_headers => @headers}
+    end
+
+    def marshal_load(hash)
+      apply_env Env.from(hash)
+    end
+
+    alias to_hash marshal_dump
   end
 end
 
