@@ -371,6 +371,7 @@ module Faraday
     # Returns the new Request.
     def build_request(method)
       Request.create(method) do |req|
+        req.connection = self
         req.params  = self.params.dup
         req.headers = self.headers.dup
         req.options = self.options.merge(:proxy => self.proxy)

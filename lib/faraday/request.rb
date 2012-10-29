@@ -10,6 +10,8 @@ module Faraday
   #   end
   #
   class Request < Struct.new(:method, :path, :params, :headers, :body, :options)
+    attr_reader :connection, :ssl
+
     def self.create(request_method)
       new(request_method).tap do |request|
         yield request if block_given?
@@ -50,6 +52,19 @@ module Faraday
 
     def []=(key, value)
       headers[key] = value
+    end
+
+    def connection=(conn)
+      @ssl = conn.ssl
+      @connection = conn
+    end
+
+    def full_url
+      @full_url ||= @connection.build_exclusive_url(path, params)
+    end
+
+    def full_uri
+      full_url.request_uri
     end
 
     # ENV Keys

@@ -1,4 +1,6 @@
 module Faraday
+  require_libs 'adapter'
+
   # A Builder that processes requests into responses wit
   class CallbackBuilder
     class StackLocked < RuntimeError; end
