@@ -147,14 +147,6 @@ module Faraday
       end
     end
 
-    def build_query(params)
-      FlatParamsEncoder.encode(params)
-    end
-
-    def build_nested_query(params)
-      NestedParamsEncoder.encode(params)
-    end
-
     ESCAPE_RE = /[^a-zA-Z0-9 .~_-]/
 
     def escape(s)
@@ -165,23 +157,34 @@ module Faraday
 
     def unescape(s) CGI.unescape s.to_s end
 
-    DEFAULT_SEP = /[&;] */n
+    def flat_params_encoder
+      FlatParamsEncoder.new(Utils)
+    end
 
-    # Adapted from Rack
+    def nested_params_encoder
+      NestedParamsEncoder.new(Utils)
+    end
+
+    def build_query(params)
+      flat_params_encoder.encode(params)
+    end
+
+    def build_nested_query(params)
+      nested_params_encoder.encode(params)
+    end
+
     def parse_query(query)
-      FlatParamsEncoder.decode(query)
+      flat_params_encoder.decode(query)
     end
 
     def parse_nested_query(query)
-      NestedParamsEncoder.decode(query)
+      nested_params_encoder.decode(query)
     end
+
+    attr_writer :default_params_encoder
 
     def default_params_encoder
-      @default_params_encoder ||= NestedParamsEncoder
-    end
-
-    class << self
-      attr_writer :default_params_encoder
+      @default_params_encoder ||= NestedParamsEncoder.new(Utils)
     end
 
     # Stolen from Rack

@@ -203,7 +203,7 @@ class TestConnection < Faraday::TestCase
 
   def test_build_url_without_braketizing_repeated_params_in_query
     conn = Faraday::Connection.new
-    conn.options.params_encoder = Faraday::FlatParamsEncoder
+    conn.options.params_encoder = Faraday::FlatParamsEncoder.new(Faraday::Utils)
     uri = conn.build_url("http://sushi.com/sake.html", 'a' => [1, 2])
     assert_equal "a=1&a=2", uri.query
   end
@@ -393,6 +393,12 @@ class TestRequestParams < Faraday::TestCase
     assert_equal "color%5B%5D=red&color%5B%5D=blue", query
   end
 
+  def test_semicolon_separated_params_in_url
+    create_connection 'http://a.co/page1?a=1;b=2;c=3'
+    query = get
+    assert_equal "a=1&b=2&c=3", query
+  end
+
   def test_array_params_in_params
     Faraday::Utils.default_params_encoder = nil
     create_connection 'http://a.co/page1', :params => {:color => ['red', 'blue']}
@@ -401,14 +407,14 @@ class TestRequestParams < Faraday::TestCase
   end
 
   def test_array_params_in_url_with_flat_params
-    Faraday::Utils.default_params_encoder = Faraday::FlatParamsEncoder
+    Faraday::Utils.default_params_encoder = Faraday::FlatParamsEncoder.new(Faraday::Utils)
     create_connection 'http://a.co/page1?color=red&color=blue'
     query = get
     assert_equal "color=red&color=blue", query
   end
 
   def test_array_params_in_params_with_flat_params
-    Faraday::Utils.default_params_encoder = Faraday::FlatParamsEncoder
+    Faraday::Utils.default_params_encoder = Faraday::FlatParamsEncoder.new(Faraday::Utils)
     create_connection 'http://a.co/page1', :params => {:color => ['red', 'blue']}
     query = get
     assert_equal "color=red&color=blue", query

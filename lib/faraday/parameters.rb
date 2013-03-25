@@ -1,18 +1,31 @@
+require 'forwardable'
+
 module Faraday
-  module NestedParamsEncoder
-    ESCAPE_RE = /[^a-zA-Z0-9 .~_-]/
+  class AbstractParamsEncoder
+    attr_reader :utils, :separator
 
-    def self.escape(s)
-      return s.to_s.gsub(ESCAPE_RE) {
-        '%' + $&.unpack('H2' * $&.bytesize).join('%').upcase
-      }.tr(' ', '+')
+    extend Forwardable
+    def_delegators :utils, :escape, :unescape
+
+    def initialize(utils, separator = /[&;] */)
+      @utils = utils
+      @separator = separator
     end
 
-    def self.unescape(s)
-      CGI.unescape(s.to_s)
+    def each_pair(query)
+      query.split(separator).map do |pair|
+        if pair && !pair.empty?
+          key, value = pair.split('=', 2)
+          key = unescape(key)
+          value = unescape(value.to_str) if value.respond_to?(:to_str)
+          yield key, value
+        end
+      end
     end
+  end
 
-    def self.encode(params)
+  class NestedParamsEncoder < AbstractParamsEncoder
+    def encode(params)
       return nil if params == nil
 
       if !params.is_a?(Array)
@@ -66,70 +79,49 @@ module Faraday
       return buffer.chop
     end
 
-    def self.decode(query)
+    def decode(query)
       return nil if query == nil
-      # Recursive helper lambda
-      dehash = lambda do |hash|
-        hash.each do |(key, value)|
-          if value.kind_of?(Hash)
-            hash[key] = dehash.call(value)
-          end
+      params = {}
+
+      each_pair(query) do |key, value|
+        array_notation = !!(key =~ /\[\]$/)
+        subkeys = key.split(/[\[\]]+/)
+        final_subkey = subkeys.pop
+        current_hash = params
+
+        for subkey in subkeys
+          current_hash = (current_hash[subkey] ||= {})
         end
-        # Numeric keys implies an array
-        if hash != {} && hash.keys.all? { |key| key =~ /^\d+$/ }
-          hash.sort.inject([]) do |accu, (_, value)|
-            accu << value; accu
-          end
+
+        if array_notation
+          (current_hash[final_subkey] ||= []) << value
         else
-          hash
+          current_hash[final_subkey] = value
         end
       end
 
-      empty_accumulator = {}
-      return ((query.split('&').map do |pair|
-        pair.split('=', 2) if pair && !pair.empty?
-      end).compact.inject(empty_accumulator.dup) do |accu, (key, value)|
-        key = unescape(key)
-        if value.kind_of?(String)
-          value = unescape(value.gsub(/\+/, ' '))
-        end
+      params.each do |key, value|
+        params[key] = make_arrays(value) if value.kind_of?(Hash)
+      end
+      params
+    end
 
-        array_notation = !!(key =~ /\[\]$/)
-        subkeys = key.split(/[\[\]]+/)
-        current_hash = accu
-        for i in 0...(subkeys.size - 1)
-          subkey = subkeys[i]
-          current_hash[subkey] = {} unless current_hash[subkey]
-          current_hash = current_hash[subkey]
+    def make_arrays(hash)
+      hash.each do |key, value|
+        hash[key] = make_arrays(value) if value.kind_of?(Hash)
+      end
+      if !hash.empty? && hash.keys.all? {|k| k =~ /^\d+$/ }
+        hash.sort.inject([]) do |ary, (_, value)|
+          ary << value
         end
-        if array_notation
-          current_hash[subkeys.last] = [] unless current_hash[subkeys.last]
-          current_hash[subkeys.last] << value
-        else
-          current_hash[subkeys.last] = value
-        end
-        accu
-      end).inject(empty_accumulator.dup) do |accu, (key, value)|
-        accu[key] = value.kind_of?(Hash) ? dehash.call(value) : value
-        accu
+      else
+        hash
       end
     end
   end
 
-  module FlatParamsEncoder
-    ESCAPE_RE = /[^a-zA-Z0-9 .~_-]/
-
-    def self.escape(s)
-      return s.to_s.gsub(ESCAPE_RE) {
-        '%' + $&.unpack('H2' * $&.bytesize).join('%').upcase
-      }.tr(' ', '+')
-    end
-
-    def self.unescape(s)
-      CGI.unescape(s.to_s)
-    end
-
-    def self.encode(params)
+  class FlatParamsEncoder < AbstractParamsEncoder
+    def encode(params)
       return nil if params == nil
 
       if !params.is_a?(Array)
@@ -167,27 +159,20 @@ module Faraday
       return buffer.chop
     end
 
-    def self.decode(query)
-      empty_accumulator = {}
+    def decode(query)
       return nil if query == nil
-      split_query = (query.split('&').map do |pair|
-        pair.split('=', 2) if pair && !pair.empty?
-      end).compact
-      return split_query.inject(empty_accumulator.dup) do |accu, pair|
-        pair[0] = unescape(pair[0])
-        pair[1] = true if pair[1].nil?
-        if pair[1].respond_to?(:to_str)
-          pair[1] = unescape(pair[1].to_str.gsub(/\+/, " "))
-        end
-        if accu[pair[0]].kind_of?(Array)
-          accu[pair[0]] << pair[1]
-        elsif accu[pair[0]]
-          accu[pair[0]] = [accu[pair[0]], pair[1]]
+      params = {}
+      each_pair(query) do |key, value|
+        prior_value = params[key]
+        if prior_value.kind_of?(Array)
+          prior_value << value
+        elsif prior_value
+          params[key] = [prior_value, value]
         else
-          accu[pair[0]] = pair[1]
+          params[key] = value
         end
-        accu
       end
+      params
     end
   end
 end
