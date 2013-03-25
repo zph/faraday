@@ -299,7 +299,7 @@ module Faraday
     #   conn.get("nigiri?page=2") # accesses https://sushi.com/api/nigiri
     #
     # Returns the parsed URI from teh given input..
-    def url_prefix=(url, encoder = nil)
+    def url_prefix=(url, encoder = options.params_encoder)
       uri = @url_prefix = Utils.URI(url)
       self.path_prefix = uri.path
 
