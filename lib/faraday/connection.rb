@@ -399,11 +399,8 @@ module Faraday
     def build_exclusive_url(url = nil, params = nil)
       url = nil if url.respond_to?(:empty?) and url.empty?
       base = url_prefix
-      if url and base.path and base.path !~ /\/$/
-        base = base.dup
-        base.path = base.path + '/'  # ensure trailing slash
-      end
-      uri = url ? [base.to_s, url].join('/') : base
+      url_without_leading_slash = url.gsub!(/^\//, '')
+      uri = url ? URI.parse([base.to_s, url_without_leading_slash].join('/')) : base
       uri.query = params.to_query(options.params_encoder) if params
       uri.query = nil if uri.query and uri.query.empty?
       uri
