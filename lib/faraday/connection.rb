@@ -403,7 +403,7 @@ module Faraday
         base = base.dup
         base.path = base.path + '/'  # ensure trailing slash
       end
-      uri = url ? base + url : base
+      uri = url ? [base.to_s, url].join('/') : base
       uri.query = params.to_query(options.params_encoder) if params
       uri.query = nil if uri.query and uri.query.empty?
       uri
